@@ -61,6 +61,8 @@ const float KEEP = 255;
 //define PI for calculation
 const float pi = 3.1415926;
 
+int verbose = 0;
+
 /* Constants for turn --------------------------------------------------------*/
 //temp length
 const float temp_a = sqrt(pow(2 * x_default + length_side, 2) + pow(y_step, 2));
@@ -79,7 +81,7 @@ int outputValue = 0;        // value output to the PWM (analog out)
 
 void setup() {
   // initialize serial communication:
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   // set up the I2C servo mux: PCA98685
   pwm.begin();
@@ -104,20 +106,60 @@ void setup() {
   FlexiTimer2::start();
   Serial.println("Servo service started");
   Serial.println("Robot initialization Complete");
+
+  verbose = 0;
 }
 
 void loop() {
-  Serial.println("Stand");
-  stand();
-  delay(2000);
-  Serial.println("Hand wave");
-  hand_wave(3);
-  delay(2000);
-  Serial.println("Hand wave");
-  hand_shake(3);
-  delay(2000);
-  sit();
-  delay(5000);
+  if (Serial.available() > 0) {
+    int inByte = Serial.read();
+    switch (inByte) {
+      case 'u':
+        Serial.println("Stand");
+        stand();
+        break;
+      case 'd':
+        Serial.println("Sit");
+        sit();
+        break;
+      case 'w':
+        Serial.println("Wave");
+        hand_wave(3);
+        break;
+      case 'o':
+        Serial.println("Body Left");
+        body_left(30);
+        break;
+      case 'p':
+        Serial.println("Body Right");
+        body_right(30);
+        break;
+      case 'c':
+        Serial.println("Body Center");
+        setAllCenter();
+        break;      // other moves:
+      case 'f':
+        Serial.println("Step Forward");
+        step_forward(2);
+        break;
+      case 'b':
+        Serial.println("Step Back");
+        step_back(2);
+        break;
+      case 'l':
+        Serial.println("Turn Left");
+        turn_left(5);
+        break;
+      case 'r':
+        Serial.println("Turn Right");
+        turn_right(5);
+        break;
+      default:
+        break;
+    }
+  }
+  wait_all_reach();
+  //Serial.println("...done");
 }
 
 void setAllCenter(void) {
@@ -168,6 +210,304 @@ void stand(void)
     set_site(leg, KEEP, KEEP, z_default);
   }
   wait_all_reach();
+}
+
+/*
+  - spot turn to left
+  - blocking function
+  - parameter step steps wanted to turn
+   ---------------------------------------------------------------------------*/
+void turn_left(unsigned int step)
+{
+  move_speed = spot_turn_speed;
+  while (step-- > 0)
+  {
+    if (site_now[3][1] == y_start)
+    {
+      //leg 3&1 move
+      set_site(3, x_default + x_offset, y_start, z_up);
+      wait_all_reach();
+
+      set_site(0, turn_x1 - x_offset, turn_y1, z_default);
+      set_site(1, turn_x0 - x_offset, turn_y0, z_default);
+      set_site(2, turn_x1 + x_offset, turn_y1, z_default);
+      set_site(3, turn_x0 + x_offset, turn_y0, z_up);
+      wait_all_reach();
+
+      set_site(3, turn_x0 + x_offset, turn_y0, z_default);
+      wait_all_reach();
+
+      set_site(0, turn_x1 + x_offset, turn_y1, z_default);
+      set_site(1, turn_x0 + x_offset, turn_y0, z_default);
+      set_site(2, turn_x1 - x_offset, turn_y1, z_default);
+
+      // leg 3 sticks straight out
+      verbose=1;
+      set_site(3, turn_x0 - x_offset, turn_y0, z_default);
+      verbose=0;
+      wait_all_reach();
+
+      return;
+
+      set_site(1, turn_x0 + x_offset, turn_y0, z_up);
+      wait_all_reach();
+
+      set_site(0, x_default + x_offset, y_start, z_default);
+      set_site(1, x_default + x_offset, y_start, z_up);
+      set_site(2, x_default - x_offset, y_start + y_step, z_default);
+      set_site(3, x_default - x_offset, y_start + y_step, z_default);
+      wait_all_reach();
+
+      set_site(1, x_default + x_offset, y_start, z_default);
+      wait_all_reach();
+    }
+    else
+    {
+      //leg 0&2 move
+      set_site(0, x_default + x_offset, y_start, z_up);
+      wait_all_reach();
+
+      set_site(0, turn_x0 + x_offset, turn_y0, z_up);
+      set_site(1, turn_x1 + x_offset, turn_y1, z_default);
+      set_site(2, turn_x0 - x_offset, turn_y0, z_default);
+      set_site(3, turn_x1 - x_offset, turn_y1, z_default);
+      wait_all_reach();
+
+      set_site(0, turn_x0 + x_offset, turn_y0, z_default);
+      wait_all_reach();
+
+      set_site(0, turn_x0 - x_offset, turn_y0, z_default);
+      set_site(1, turn_x1 - x_offset, turn_y1, z_default);
+      set_site(2, turn_x0 + x_offset, turn_y0, z_default);
+      set_site(3, turn_x1 + x_offset, turn_y1, z_default);
+      wait_all_reach();
+
+      set_site(2, turn_x0 + x_offset, turn_y0, z_up);
+      wait_all_reach();
+
+      set_site(0, x_default - x_offset, y_start + y_step, z_default);
+      set_site(1, x_default - x_offset, y_start + y_step, z_default);
+      set_site(2, x_default + x_offset, y_start, z_up);
+      set_site(3, x_default + x_offset, y_start, z_default);
+      wait_all_reach();
+
+      set_site(2, x_default + x_offset, y_start, z_default);
+      wait_all_reach();
+    }
+  }
+}
+
+/*
+  - spot turn to right
+  - blocking function
+  - parameter step steps wanted to turn
+   ---------------------------------------------------------------------------*/
+void turn_right(unsigned int step)
+{
+  move_speed = spot_turn_speed;
+  while (step-- > 0)
+  {
+    if (site_now[2][1] == y_start)
+    {
+      //leg 2&0 move
+      set_site(2, x_default + x_offset, y_start, z_up);
+      wait_all_reach();
+
+      set_site(0, turn_x0 - x_offset, turn_y0, z_default);
+      set_site(1, turn_x1 - x_offset, turn_y1, z_default);
+      set_site(2, turn_x0 + x_offset, turn_y0, z_up);
+      set_site(3, turn_x1 + x_offset, turn_y1, z_default);
+      wait_all_reach();
+
+      set_site(2, turn_x0 + x_offset, turn_y0, z_default);
+      wait_all_reach();
+
+      set_site(0, turn_x0 + x_offset, turn_y0, z_default);
+      set_site(1, turn_x1 + x_offset, turn_y1, z_default);
+      set_site(2, turn_x0 - x_offset, turn_y0, z_default);
+      set_site(3, turn_x1 - x_offset, turn_y1, z_default);
+      wait_all_reach();
+
+      set_site(0, turn_x0 + x_offset, turn_y0, z_up);
+      wait_all_reach();
+
+      set_site(0, x_default + x_offset, y_start, z_up);
+      set_site(1, x_default + x_offset, y_start, z_default);
+      set_site(2, x_default - x_offset, y_start + y_step, z_default);
+      set_site(3, x_default - x_offset, y_start + y_step, z_default);
+      wait_all_reach();
+
+      set_site(0, x_default + x_offset, y_start, z_default);
+      wait_all_reach();
+    }
+    else
+    {
+      //leg 1&3 move
+      set_site(1, x_default + x_offset, y_start, z_up);
+      wait_all_reach();
+
+      set_site(0, turn_x1 + x_offset, turn_y1, z_default);
+      set_site(1, turn_x0 + x_offset, turn_y0, z_up);
+      set_site(2, turn_x1 - x_offset, turn_y1, z_default);
+      set_site(3, turn_x0 - x_offset, turn_y0, z_default);
+      wait_all_reach();
+
+      set_site(1, turn_x0 + x_offset, turn_y0, z_default);
+      wait_all_reach();
+
+      set_site(0, turn_x1 - x_offset, turn_y1, z_default);
+      set_site(1, turn_x0 - x_offset, turn_y0, z_default);
+      set_site(2, turn_x1 + x_offset, turn_y1, z_default);
+      set_site(3, turn_x0 + x_offset, turn_y0, z_default);
+      wait_all_reach();
+
+      set_site(3, turn_x0 + x_offset, turn_y0, z_up);
+      wait_all_reach();
+
+      set_site(0, x_default - x_offset, y_start + y_step, z_default);
+      set_site(1, x_default - x_offset, y_start + y_step, z_default);
+      set_site(2, x_default + x_offset, y_start, z_default);
+      set_site(3, x_default + x_offset, y_start, z_up);
+      wait_all_reach();
+
+      set_site(3, x_default + x_offset, y_start, z_default);
+      wait_all_reach();
+    }
+  }
+}
+
+/*
+  - go forward
+  - blocking function
+  - parameter step steps wanted to go
+   ---------------------------------------------------------------------------*/
+void step_forward(unsigned int step)
+{
+  move_speed = leg_move_speed;
+  while (step-- > 0)
+  {
+    if (site_now[2][1] == y_start)
+    {
+      //leg 2&1 move
+      set_site(2, x_default + x_offset, y_start, z_up);
+      wait_all_reach();
+      set_site(2, x_default + x_offset, y_start + 2 * y_step, z_up);
+      wait_all_reach();
+      set_site(2, x_default + x_offset, y_start + 2 * y_step, z_default);
+      wait_all_reach();
+
+      move_speed = body_move_speed;
+
+      set_site(0, x_default + x_offset, y_start, z_default);
+      set_site(1, x_default + x_offset, y_start + 2 * y_step, z_default);
+      set_site(2, x_default - x_offset, y_start + y_step, z_default);
+      set_site(3, x_default - x_offset, y_start + y_step, z_default);
+      wait_all_reach();
+
+      move_speed = leg_move_speed;
+
+      set_site(1, x_default + x_offset, y_start + 2 * y_step, z_up);
+      wait_all_reach();
+      set_site(1, x_default + x_offset, y_start, z_up);
+      wait_all_reach();
+      set_site(1, x_default + x_offset, y_start, z_default);
+      wait_all_reach();
+    }
+    else
+    {
+      //leg 0&3 move
+      set_site(0, x_default + x_offset, y_start, z_up);
+      wait_all_reach();
+      set_site(0, x_default + x_offset, y_start + 2 * y_step, z_up);
+      wait_all_reach();
+      set_site(0, x_default + x_offset, y_start + 2 * y_step, z_default);
+      wait_all_reach();
+
+      move_speed = body_move_speed;
+
+      set_site(0, x_default - x_offset, y_start + y_step, z_default);
+      set_site(1, x_default - x_offset, y_start + y_step, z_default);
+      set_site(2, x_default + x_offset, y_start, z_default);
+      set_site(3, x_default + x_offset, y_start + 2 * y_step, z_default);
+      wait_all_reach();
+
+      move_speed = leg_move_speed;
+
+      set_site(3, x_default + x_offset, y_start + 2 * y_step, z_up);
+      wait_all_reach();
+      set_site(3, x_default + x_offset, y_start, z_up);
+      wait_all_reach();
+      set_site(3, x_default + x_offset, y_start, z_default);
+      wait_all_reach();
+    }
+  }
+}
+
+/*
+  - go back
+  - blocking function
+  - parameter step steps wanted to go
+   ---------------------------------------------------------------------------*/
+void step_back(unsigned int step)
+{
+  move_speed = leg_move_speed;
+  while (step-- > 0)
+  {
+    if (site_now[3][1] == y_start)
+    {
+      //leg 3&0 move
+      set_site(3, x_default + x_offset, y_start, z_up);
+      wait_all_reach();
+      set_site(3, x_default + x_offset, y_start + 2 * y_step, z_up);
+      wait_all_reach();
+      set_site(3, x_default + x_offset, y_start + 2 * y_step, z_default);
+      wait_all_reach();
+
+      move_speed = body_move_speed;
+
+      set_site(0, x_default + x_offset, y_start + 2 * y_step, z_default);
+      set_site(1, x_default + x_offset, y_start, z_default);
+      set_site(2, x_default - x_offset, y_start + y_step, z_default);
+      set_site(3, x_default - x_offset, y_start + y_step, z_default);
+      wait_all_reach();
+
+      move_speed = leg_move_speed;
+
+      set_site(0, x_default + x_offset, y_start + 2 * y_step, z_up);
+      wait_all_reach();
+      set_site(0, x_default + x_offset, y_start, z_up);
+      wait_all_reach();
+      set_site(0, x_default + x_offset, y_start, z_default);
+      wait_all_reach();
+    }
+    else
+    {
+      //leg 1&2 move
+      set_site(1, x_default + x_offset, y_start, z_up);
+      wait_all_reach();
+      set_site(1, x_default + x_offset, y_start + 2 * y_step, z_up);
+      wait_all_reach();
+      set_site(1, x_default + x_offset, y_start + 2 * y_step, z_default);
+      wait_all_reach();
+
+      move_speed = body_move_speed;
+
+      set_site(0, x_default - x_offset, y_start + y_step, z_default);
+      set_site(1, x_default - x_offset, y_start + y_step, z_default);
+      set_site(2, x_default + x_offset, y_start + 2 * y_step, z_default);
+      set_site(3, x_default + x_offset, y_start, z_default);
+      wait_all_reach();
+
+      move_speed = leg_move_speed;
+
+      set_site(2, x_default + x_offset, y_start + 2 * y_step, z_up);
+      wait_all_reach();
+      set_site(2, x_default + x_offset, y_start, z_up);
+      wait_all_reach();
+      set_site(2, x_default + x_offset, y_start, z_default);
+      wait_all_reach();
+    }
+  }
 }
 
 void body_left(int i)
@@ -278,25 +618,6 @@ void hand_shake(int i)
     move_speed = 1;
     body_right(15);
   }
-}
-
-// Emulate the default arduino servo() behavior (with an added parameter for the servo number
-//      to control):
-// Documentation from the main servo library:   
-//    Writes a value to the servo, controlling the shaft accordingly. On a standard servo,
-//    this will set the angle of the shaft (in degrees), moving the shaft to that orientation.
-//    On a continuous rotation servo, this will set the speed of the servo (with 0 being full-speed
-//    in one direction, 180 being full speed in the other, and a value near 90 being no movement).
-void servo_write(int leg, int joint, int angle) 
-{
-  int micros = map(angle, 0, 180, USMIN, USMAX) + servo_offset[leg][joint];
-  pwm.writeMicroseconds(servo_pin[leg][joint], micros);
-  Serial.print("servo ");
-  Serial.print(leg);
-  Serial.print(", ");
-  Serial.print(joint);
-  Serial.print(" = ");
-  Serial.println(micros);
 }
 
 /*
@@ -436,4 +757,17 @@ void polar_to_servo(int leg, float alpha, float beta, float gamma)
   servo_write(leg, 0, alpha);
   servo_write(leg, 1, beta);
   servo_write(leg, 2, gamma);
+}
+
+// Emulate the default arduino servo() behavior (with an added parameter for the servo number
+//      to control):
+// Documentation from the main servo library:   
+//    Writes a value to the servo, controlling the shaft accordingly. On a standard servo,
+//    this will set the angle of the shaft (in degrees), moving the shaft to that orientation.
+//    On a continuous rotation servo, this will set the speed of the servo (with 0 being full-speed
+//    in one direction, 180 being full speed in the other, and a value near 90 being no movement).
+void servo_write(int leg, int joint, int angle) 
+{
+  int micros = map(angle, 0, 180, USMIN, USMAX) + servo_offset[leg][joint];
+  pwm.writeMicroseconds(servo_pin[leg][joint], micros);
 }
